@@ -17,7 +17,3 @@ T proxy = NullableCall.nullableCall(Class<T> c, T object)
 ```
 
 Examples are available in tests.
-
-## Incompability
-
-NullableCall is using CgLib. CgLib is currently working with Java 11, but it is not working with Java 17. 

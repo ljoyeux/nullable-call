@@ -1,15 +1,11 @@
 package fr.devlogic.util;
 
-import net.sf.cglib.proxy.Enhancer;
-import net.sf.cglib.proxy.InvocationHandler;
+import net.bytebuddy.ByteBuddy;
+import net.bytebuddy.implementation.InvocationHandlerAdapter;
+import net.bytebuddy.matcher.ElementMatchers;
 
-import java.lang.reflect.Method;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
-import java.lang.reflect.TypeVariable;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
+import java.lang.reflect.*;
+import java.util.*;
 
 /**
  * <p>This class provides methods to perform calls on objects potentielly nul.</p>
@@ -53,14 +49,10 @@ public final class NullableCall {
     }
 
     private static <E> E nullableCall(Class<E> c, @Nullable E o, @Nullable Map<String, Class> genericTypes) {
-        Enhancer enhancer = new Enhancer();
-        enhancer.setSuperclass(c);
-        enhancer.setCallback(new NullableInterceptor<>(c, o, genericTypes));
-
-        return (E) enhancer.create();
+        return (E) getProxy(o, c, genericTypes);
     }
 
-    private static class NullableInterceptor<E> implements InvocationHandler {
+    private static final class NullableInterceptor<E> implements InvocationHandler {
         private final Map<String, Class> genericTypes;
         private final E o;
         private final Class<E> c;
@@ -143,5 +135,23 @@ public final class NullableCall {
         }
 
         return null;
+    }
+    private static final ByteBuddy BYTE_BUDDY = new ByteBuddy();
+
+    private static Object getProxy(Object o, Class c, Map<String, Class> genericTypes) {
+        Class target = (o != null) ? o.getClass() : c;
+        Class loaded = BYTE_BUDDY.subclass(target)
+                .method(ElementMatchers.any())
+                .intercept(InvocationHandlerAdapter.of(new NullableInterceptor<>(c, o, genericTypes)))
+                .make()
+                .load(target.getClassLoader())
+                .getLoaded();
+        try {
+            Object object = loaded.getConstructor().newInstance();
+            return object;
+        } catch (InvocationTargetException | InstantiationException | IllegalAccessException |
+                 NoSuchMethodException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
